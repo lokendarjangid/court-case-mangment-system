@@ -1,0 +1,25 @@
+{% extends 'base.html' %} {% block body %}
+<div class="container">
+    <h1>Register a New User</h1>
+    <form method="POST" action="/register">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required>
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required>
+
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required>
+
+        <label for="role">Role:</label>
+        <select id="role" name="role">
+            <option value="lawyer">Lawyer</option>
+            <option value="client">Client</option>
+        </select>
+
+        <input type="submit" value="Register">
+    </form>
+    <a href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+</div>
+
+{% endblock %}

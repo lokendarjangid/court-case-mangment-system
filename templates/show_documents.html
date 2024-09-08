@@ -1,0 +1,26 @@
+{% extends 'base.html' %} {% block body %}
+
+<div class="container">
+    <table>
+        <thead>
+            <tr>
+                <th>Case ID</th>
+                <th>File Name</th>
+                <th>Upload Data</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for document in documents %}
+            <tr>
+                <td>{{ document['id'] }}</td>
+                <td>{{ document['file_path'] }}</td>
+                <td>{{ document['upload_date'] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <a href="{{url_for('dashboard')}}">back to dashboard</a>
+</div>
+
+
+{% endblock %}
