@@ -1,5 +1,5 @@
+import psycopg2
 from flask import Flask, render_template, request, redirect, url_for, session
-import mysql.connector
 from werkzeug.utils import secure_filename
 import os
 
@@ -8,16 +8,62 @@ app.secret_key = 'your_secret_key'
 UPLOAD_FOLDER = 'uploads/'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# MySQL configuration
-db = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="loky",
-    database="court_case_db"
+# PostgreSQL configuration
+db = psycopg2.connect(
+    host="ep-wild-snow-a4i15u74-pooler.us-east-1.aws.neon.tech",
+    user="default",
+    password="W0SB7gqQGMdb",
+    dbname="verceldb",
+    sslmode="require"  # Ensure SSL is enabled
 )
 
 # Set up cursor
-cursor = db.cursor(dictionary=True)
+cursor = db.cursor()
+
+def initialize_db():
+    # Create users table if it does not exist
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(50) UNIQUE NOT NULL,
+            password VARCHAR(100) NOT NULL,
+            role VARCHAR(10) CHECK (role IN ('admin', 'lawyer', 'client')),
+            email VARCHAR(100) NOT NULL
+        )
+    """)
+
+    # Create cases table if it does not exist
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cases (
+            id SERIAL PRIMARY KEY,
+            case_name VARCHAR(255) NOT NULL,
+            client_id INT REFERENCES users(id),
+            lawyer_id INT REFERENCES users(id),
+            court_date DATE NOT NULL,
+            status VARCHAR(50) NOT NULL
+        )
+    """)
+
+    # Create documents table if it does not exist
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS documents (
+            id SERIAL PRIMARY KEY,
+            case_id INT REFERENCES cases(id),
+            file_path VARCHAR(255) NOT NULL,
+            upload_date DATE DEFAULT CURRENT_DATE
+        )
+    """)
+
+    # Insert default admin user if not already present
+    cursor.execute("""
+        INSERT INTO users (username, password, role, email)
+        SELECT 'admin', 'admin', 'admin', 'admin@gmail.com'
+        WHERE NOT EXISTS (
+            SELECT 1 FROM users WHERE username = 'admin'
+        )
+    """)
+
+    db.commit()
 
 @app.route('/')
 def home():
@@ -59,8 +105,8 @@ def login():
         cursor.execute("SELECT * FROM users WHERE username=%s AND password=%s", (username, password))
         user = cursor.fetchone()
         if user:
-            session['user_id'] = user['id']
-            session['role'] = user['role']
+            session['user_id'] = user[0]
+            session['role'] = user[3]
             return redirect(url_for('dashboard'))
         else:
             return "Invalid credentials"
@@ -114,7 +160,6 @@ def delete_case(case_id):
     return redirect(url_for('dashboard'))
 
 
-
 @app.route('/dashboard')
 def dashboard():
     if 'user_id' in session:
@@ -123,9 +168,9 @@ def dashboard():
         if user_role == 'admin':
             cursor.execute("SELECT * FROM cases")
         elif user_role == 'lawyer':
-            cursor.execute("SELECT * FROM cases WHERE lawyer_id = %s", (session['user_id'],))
+            cursor.execute("SELECT * FROM cases WHERE lawyer_id = %s", (user_id,))
         elif user_role == 'client':
-            cursor.execute("SELECT * FROM cases WHERE client_id = %s", (session['user_id'],))
+            cursor.execute("SELECT * FROM cases WHERE client_id = %s", (user_id,))
         
         cases = cursor.fetchall()
         return render_template('dashboard.html', cases=cases, role=user_role, user_id=user_id)
@@ -137,11 +182,13 @@ def dashboard():
 def search():
     if request.method == 'POST':
         search_term = request.form['search_term']
-        cursor.execute("SELECT * FROM cases WHERE case_name LIKE %s", ("%" + search_term + "%",))
+        cursor.execute("SELECT * FROM cases WHERE case_name ILIKE %s", ("%" + search_term + "%",))
         cases = cursor.fetchall()
         return render_template('search_results.html', cases=cases)
     return render_template('search.html')
 
 
 if __name__ == '__main__':
+    # Initialize the database
+    initialize_db()
     app.run(debug=True)
